@@ -35,7 +35,6 @@ jobs:
           COZE_COOKIES_JSON: ${{ secrets.COZE_COOKIES_JSON }}
           COZE_TARGET_URL: ${{ vars.COZE_TARGET_URL }}
           COZE_CLICK_TEXTS: ${{ vars.COZE_CLICK_TEXTS }}
-          BARK_PUSH_URL: ${{ secrets.BARK_PUSH_URL }}
           PLAYWRIGHT_TIMEOUT_MS: "30000"
           POST_LOAD_WAIT_MS: "5000"
         run: npm start
@@ -55,6 +54,34 @@ jobs:
           name: coze-failure
           path: artifacts/
           if-no-files-found: ignore
+
+      - name: Notify Bark on failure
+        if: failure()
+        env:
+          BARK_PUSH_URL: ${{ secrets.BARK_PUSH_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node - <<'NODE'
+          const base = (process.env.BARK_PUSH_URL || "").replace(/\/+$/, "");
+          if (!base) {
+            console.log("BARK_PUSH_URL is not set; skip notification.");
+            process.exit(0);
+          }
+
+          const title = encodeURIComponent("Coze每日积分失败");
+          const body = encodeURIComponent([
+            "GitHub Actions 运行失败。",
+            `Repo: ${process.env.REPOSITORY}`,
+            `Run: ${process.env.RUN_URL}`
+          ].join("\n"));
+
+          const response = await fetch(`${base}/${title}/${body}`);
+          if (!response.ok) {
+            throw new Error(`Bark returned HTTP ${response.status}: ${await response.text()}`);
+          }
+          console.log("Bark notification sent.");
+          NODE
 
       - name: Upload updated storage state
         if: ${{ success() && vars.UPLOAD_UPDATED_STORAGE_STATE == 'true' }}
