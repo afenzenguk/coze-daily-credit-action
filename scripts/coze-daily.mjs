@@ -30,9 +30,14 @@ async function main() {
   await fs.mkdir(ARTIFACT_DIR, { recursive: true });
   await materializeStorageState();
 
-  const browser = await chromium.launch({
+  const launchOptions = {
     headless: process.env.HEADLESS !== "false"
-  });
+  };
+  if (process.env.PLAYWRIGHT_CHANNEL) {
+    launchOptions.channel = process.env.PLAYWRIGHT_CHANNEL;
+  }
+
+  const browser = await chromium.launch(launchOptions);
 
   let context;
   try {

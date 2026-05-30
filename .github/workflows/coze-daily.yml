@@ -44,7 +44,7 @@ jobs:
         if: success()
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
-          COZE_SECRET_NAME: COZE_STORAGE_STATE_JSON
+          COZE_SECRET_NAME: COZE_COOKIES_JSON
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: npm run update-secret
 

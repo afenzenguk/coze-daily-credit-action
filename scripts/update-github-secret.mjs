@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import sodium from "libsodium-wrappers";
 
-const secretName = process.env.COZE_SECRET_NAME || "COZE_STORAGE_STATE_JSON";
+const secretName = process.env.COZE_SECRET_NAME || "COZE_COOKIES_JSON";
 const statePath = process.env.UPDATED_STORAGE_STATE_PATH || "artifacts/storage_state.updated.json";
 const token = process.env.GH_PAT || "";
 const repository = process.env.GITHUB_REPOSITORY || "";
@@ -16,10 +16,14 @@ async function main() {
   }
 
   const value = await fs.readFile(statePath, "utf8");
-  JSON.parse(value);
+  const storageState = JSON.parse(value);
+  const cookies = filterCookies(Array.isArray(storageState.cookies) ? storageState.cookies : []);
+  if (cookies.length === 0) {
+    throw new Error("No usable cookies were found in the updated storage state.");
+  }
 
   const publicKey = await github("GET", `/repos/${repository}/actions/secrets/public-key`);
-  const encryptedValue = await encryptSecret(publicKey.key, value);
+  const encryptedValue = await encryptSecret(publicKey.key, JSON.stringify(cookies));
 
   await github("PUT", `/repos/${repository}/actions/secrets/${secretName}`, {
     encrypted_value: encryptedValue,
@@ -27,6 +31,22 @@ async function main() {
   });
 
   console.log(`Updated repository secret ${secretName}.`);
+}
+
+function filterCookies(cookies) {
+  return cookies.filter((cookie) => {
+    const domain = String(cookie.domain || "");
+    return /coze\.cn|volcengine\.com|volccloudidentity\.com/.test(domain);
+  }).map((cookie) => ({
+    name: String(cookie.name || ""),
+    value: String(cookie.value || ""),
+    domain: cookie.domain,
+    path: cookie.path || "/",
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: cookie.secure !== false,
+    sameSite: cookie.sameSite || "Lax",
+    ...(typeof cookie.expires === "number" ? { expires: cookie.expires } : {})
+  }));
 }
 
 async function encryptSecret(publicKey, value) {

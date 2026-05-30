@@ -6,8 +6,8 @@
 
 至少配置下面其中一个：
 
-- `COZE_STORAGE_STATE_JSON`：推荐。Playwright storage state（浏览器登录状态 JSON）。
-- `COZE_COOKIES_JSON`：只包含 Cookie 数组也可以，脚本会转换成 Playwright storage state。
+- `COZE_COOKIES_JSON`：推荐。只放 Coze / Volcengine 相关 Cookie 数组，脚本会转换成 Playwright storage state。
+- `COZE_STORAGE_STATE_JSON`：也支持，但这个仓库不再建议用它，因为太大，GitHub Secret（GitHub 加密变量）容易超限。
 
 失败推送：
 
@@ -15,7 +15,7 @@
 
 可选自动更新 Cookie：
 
-- `GH_PAT`：Fine-grained personal access token（细粒度个人访问令牌），需要当前仓库的 Actions secrets 读写权限。配置后，每次成功运行会把刷新后的 `storage_state` 写回 `COZE_STORAGE_STATE_JSON`。
+- `GH_PAT`：Fine-grained personal access token（细粒度个人访问令牌），需要当前仓库的 Actions secrets 读写权限。配置后，每次成功运行会把刷新后的 Cookie 数组写回 `COZE_COOKIES_JSON`。
 
 ## GitHub Variables（GitHub 普通变量）
 
@@ -35,7 +35,7 @@ npx playwright install chromium
 npx playwright codegen https://www.coze.cn/home --save-storage=storage_state.json
 ```
 
-登录完成后关闭浏览器，把 `storage_state.json` 的完整内容复制到 GitHub Secret `COZE_STORAGE_STATE_JSON`。
+登录完成后关闭浏览器，把 `artifacts/storage_state.from-profile.json` 里的 Cookie 数组复制到 GitHub Secret `COZE_COOKIES_JSON`。更省事的做法是让工作流后续自动刷新。
 
 如果你只有浏览器扩展导出的 Cookie，也可以把 Cookie JSON 数组复制到 `COZE_COOKIES_JSON`。
 
@@ -48,6 +48,7 @@ npx playwright codegen https://www.coze.cn/home --save-storage=storage_state.jso
 ```powershell
 $env:COZE_STORAGE_STATE_JSON = Get-Content .\storage_state.json -Raw
 $env:BARK_PUSH_URL = "https://api.day.app/你的BarkKey"
+$env:PLAYWRIGHT_CHANNEL = "chrome"
 npm start
 ```
 
