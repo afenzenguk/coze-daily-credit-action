@@ -1,0 +1,66 @@
+name: Coze daily credit
+
+on:
+  schedule:
+    - cron: "15 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Coze daily action
+        env:
+          COZE_STORAGE_STATE_JSON: ${{ secrets.COZE_STORAGE_STATE_JSON }}
+          COZE_COOKIES_JSON: ${{ secrets.COZE_COOKIES_JSON }}
+          COZE_TARGET_URL: ${{ vars.COZE_TARGET_URL }}
+          COZE_CLICK_TEXTS: ${{ vars.COZE_CLICK_TEXTS }}
+          BARK_PUSH_URL: ${{ secrets.BARK_PUSH_URL }}
+          PLAYWRIGHT_TIMEOUT_MS: "30000"
+          POST_LOAD_WAIT_MS: "5000"
+        run: npm start
+
+      - name: Update Coze cookie secret
+        if: success()
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          COZE_SECRET_NAME: COZE_STORAGE_STATE_JSON
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run update-secret
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coze-failure
+          path: artifacts/
+          if-no-files-found: ignore
+
+      - name: Upload updated storage state
+        if: ${{ success() && vars.UPLOAD_UPDATED_STORAGE_STATE == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coze-storage-state
+          path: artifacts/storage_state.updated.json
+          if-no-files-found: ignore
+          retention-days: 3

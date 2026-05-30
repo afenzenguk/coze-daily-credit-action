@@ -1,0 +1,17 @@
+{
+  "name": "coze-daily-credit-action",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Run a daily Playwright visit to coze.cn with cookie-based login and Bark failure alerts.",
+  "scripts": {
+    "check": "node --check scripts/coze-daily.mjs && node --check scripts/update-github-secret.mjs",
+    "start": "node scripts/coze-daily.mjs",
+    "update-secret": "node scripts/update-github-secret.mjs"
+  },
+  "dependencies": {
+    "libsodium-wrappers": "^0.7.15",
+    "playwright": "^1.53.0"
+  },
+  "devDependencies": {}
+}

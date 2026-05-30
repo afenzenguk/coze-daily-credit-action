@@ -1,0 +1,9 @@
+node_modules/
+playwright-report/
+test-results/
+artifacts/
+storage_state.json
+storage_state.updated.json
+cookies.json
+.env
+.DS_Store
