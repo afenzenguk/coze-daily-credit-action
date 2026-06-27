@@ -16,13 +16,84 @@
 
 | 名称 | 必填 | 填什么 | 怎么获取 |
 | --- | --- | --- | --- |
-| `COZE_COOKIES_JSON` | 是 | Coze 登录 Cookie 的 JSON 数组 | 用浏览器登录 `https://www.coze.cn`，再用 Cookie 导出插件导出 `coze.cn`、`volcengine.com`、`volccloudidentity.com` 相关 Cookie。把导出的 JSON 数组完整粘贴进去。 |
+| `COZE_COOKIES_JSON` | 是 | Coze 登录 Cookie 的 JSON 数组 | 用浏览器登录 `https://www.coze.cn`，再用 Cookie-Editor（Cookie 编辑器）只导出 Coze 相关 Cookie，把导出的 JSON 数组完整粘贴进去。 |
 
-常用 Cookie 导出插件：
+#### Cookie 应该导出哪些
 
-- 推荐用 [Cookie-Editor 官网](https://cookie-editor.com/) 安装 Cookie-Editor（Cookie 编辑器），也可以直接打开 [Cookie-Editor 的 Chrome Web Store 页面](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)。
-- 不想装插件时，可以参考 [Chrome DevTools 官方文档](https://developer.chrome.com/docs/devtools/application/cookies) 用 Chrome DevTools（Chrome 开发者工具）查看 Cookie，但手动复制会更麻烦。
-- 导出时尽量只导出 Coze 相关域名，避免把无关网站 Cookie 放进去。
+只要 Coze 相关域名，不要导出所有网站 Cookie：
+
+| 应该保留的域名 | 说明 |
+| --- | --- |
+| `coze.cn` | Coze 主站登录态，最重要 |
+| `volcengine.com` | 火山引擎登录链路可能会用到 |
+| `volccloudidentity.com` | 火山引擎身份认证链路可能会用到 |
+
+脚本实际会使用这些 Cookie 字段：
+
+| 字段 | 是否必须 | 说明 |
+| --- | --- | --- |
+| `name` | 是 | Cookie 名称 |
+| `value` | 是 | Cookie 值，最敏感，不要发给别人 |
+| `domain` | 建议保留 | Cookie 所属域名，例如 `.coze.cn` |
+| `path` | 建议保留 | 通常是 `/` |
+| `expirationDate` 或 `expires` | 建议保留 | 过期时间 |
+| `httpOnly` | 建议保留 | 很多登录 Cookie 都是 HttpOnly（禁止网页脚本读取） |
+| `secure` | 建议保留 | 是否只允许 HTTPS（加密网页连接）发送 |
+| `sameSite` | 建议保留 | 浏览器跨站发送策略 |
+
+Cookie-Editor（Cookie 编辑器）导出的 `hostOnly`、`session`、`storeId` 这些字段不用管，脚本会自动忽略。你也可以直接粘贴插件导出的完整数组，脚本会自动只保留 Coze 相关域名和必要字段。
+
+我用 Cookie-Editor（Cookie 编辑器）导出的一个完整样本测过：12 条 Coze Cookie 原始文件约 4.9 KB，压缩成一行 JSON 后约 3.4 KB，脚本真正需要的字段约 2.7 KB。GitHub 官方文档写明，超过 48 KB 的 secret（加密变量）才需要特殊处理，所以正常只导出 Coze 相关 Cookie 不会超限。
+
+#### 推荐获取方式：Cookie-Editor
+
+1. 用 Chrome（谷歌浏览器）打开 `https://www.coze.cn/home`，确认自己已经登录。
+2. 安装 [Cookie-Editor 官网](https://cookie-editor.com/) 的 Cookie-Editor（Cookie 编辑器），也可以直接打开 [Cookie-Editor 的 Chrome Web Store 页面](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm)。
+3. 在 Coze 页面点击浏览器右上角的 Cookie-Editor（Cookie 编辑器）图标。
+4. 点击 `Export`（导出），选择 JSON 格式。
+5. 复制导出的 JSON 数组，粘贴到 GitHub Secret（GitHub 加密变量）`COZE_COOKIES_JSON`。
+
+不想装插件时，可以参考 [Chrome DevTools 官方文档](https://developer.chrome.com/docs/devtools/application/cookies) 用 Chrome DevTools（Chrome 开发者工具）查看 Cookie。但这个方式通常不能一键导出完整 JSON，新手不推荐。
+
+#### 为什么不推荐直接用控制台代码导出
+
+浏览器控制台里的 `document.cookie` 只能读到非 HttpOnly（允许网页脚本读取）的 Cookie。Coze 登录态里很多关键 Cookie 是 HttpOnly（禁止网页脚本读取）的；少了它们，GitHub Actions（GitHub 自动化）里的浏览器很可能还是未登录。
+
+所以，“一段控制台代码自动导出完整登录 Cookie”这条路不可靠。更稳的办法是用 Cookie-Editor（Cookie 编辑器）这种浏览器扩展导出，因为扩展可以拿到 HttpOnly Cookie。
+
+如果你已经用插件导出了很长一段 JSON，可以在浏览器控制台运行下面这段代码，把它压缩成只包含 Coze 相关域名和必要字段的一行 JSON。运行后会自动复制到剪贴板：
+
+```js
+const raw = prompt("粘贴 Cookie-Editor 导出的 JSON");
+const cookies = JSON.parse(raw);
+const keepDomain = /coze\.cn|volcengine\.com|volccloudidentity\.com/i;
+const sameSite = (value) => {
+  if (["Strict", "Lax", "None"].includes(value)) return value;
+  const lower = String(value || "").toLowerCase();
+  if (lower === "strict") return "Strict";
+  if (lower === "none" || lower === "no_restriction") return "None";
+  return "Lax";
+};
+const slim = cookies
+  .filter((cookie) => keepDomain.test(String(cookie.domain || "")))
+  .map((cookie) => ({
+    name: String(cookie.name || ""),
+    value: String(cookie.value || ""),
+    domain: cookie.domain || ".coze.cn",
+    path: cookie.path || "/",
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: cookie.secure !== false,
+    sameSite: sameSite(cookie.sameSite),
+    ...(typeof cookie.expirationDate === "number"
+      ? { expires: cookie.expirationDate }
+      : typeof cookie.expires === "number"
+        ? { expires: cookie.expires }
+        : {})
+  }))
+  .filter((cookie) => cookie.name && cookie.value);
+copy(JSON.stringify(slim));
+console.log(`已复制 ${slim.length} 条 Coze Cookie。`);
+```
 
 `COZE_STORAGE_STATE_JSON`（Playwright 登录状态）也兼容，但不推荐新手使用。它通常更大，容易超过 GitHub Secret（GitHub 加密变量）的长度限制；新手直接用 `COZE_COOKIES_JSON` 更稳。
 

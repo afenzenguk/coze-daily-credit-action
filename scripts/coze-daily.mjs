@@ -100,9 +100,11 @@ async function materializeStorageState() {
     throw new Error("COZE_COOKIES_JSON must be a non-empty cookie array or a storage state object with cookies.");
   }
 
-  const normalizedCookies = cookies.map(normalizeCookie).filter((cookie) => cookie.name && cookie.value);
+  const normalizedCookies = cookies
+    .map(normalizeCookie)
+    .filter((cookie) => cookie.name && cookie.value && isCozeCookieDomain(cookie.domain));
   if (normalizedCookies.length === 0) {
-    throw new Error("COZE_COOKIES_JSON did not contain usable cookies.");
+    throw new Error("COZE_COOKIES_JSON did not contain usable Coze cookies.");
   }
 
   const storageState = {
@@ -136,6 +138,10 @@ function normalizeCookie(cookie) {
   }
 
   return normalized;
+}
+
+function isCozeCookieDomain(domain) {
+  return /coze\.cn|volcengine\.com|volccloudidentity\.com/i.test(String(domain || ""));
 }
 
 function normalizeSameSite(value) {
