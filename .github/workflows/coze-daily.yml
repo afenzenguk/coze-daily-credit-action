@@ -2,7 +2,7 @@ name: Coze daily credit
 
 on:
   schedule:
-    - cron: "23 23 * * *"
+    - cron: "40 23 * * *"
   workflow_dispatch:
 
 permissions:
