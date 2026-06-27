@@ -1,16 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import { notifyFailure } from "./notifications.mjs";
 
 const ROOT = process.cwd();
 const ARTIFACT_DIR = path.join(ROOT, "artifacts");
 const STORAGE_STATE_PATH = path.join(ARTIFACT_DIR, "storage_state.json");
 const UPDATED_STORAGE_STATE_PATH = path.join(ARTIFACT_DIR, "storage_state.updated.json");
 const SCREENSHOT_PATH = path.join(ARTIFACT_DIR, "failure.png");
+const NOTIFICATION_SENT_PATH = path.join(ARTIFACT_DIR, "notification.sent");
 
 const DEFAULT_TARGET_URL = "https://www.coze.cn/home";
 const targetUrl = process.env.COZE_TARGET_URL || DEFAULT_TARGET_URL;
-const barkPushUrl = normalizeBarkUrl(process.env.BARK_PUSH_URL || "");
 const runUrl = process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
   ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
   : "";
@@ -63,7 +64,14 @@ async function main() {
     console.log(`Updated storage state written to ${UPDATED_STORAGE_STATE_PATH}`);
   } catch (error) {
     await captureFailure(context, error);
-    await notifyFailure(error);
+    const notified = await notifyFailure({
+      error,
+      runUrl,
+      repository: process.env.GITHUB_REPOSITORY
+    });
+    if (notified) {
+      await fs.writeFile(NOTIFICATION_SENT_PATH, new Date().toISOString(), "utf8").catch(() => {});
+    }
     throw error;
   } finally {
     await context?.close().catch(() => {});
@@ -199,30 +207,6 @@ async function captureFailure(context, error) {
     await fs.writeFile(path.join(ARTIFACT_DIR, "failure.html"), html, "utf8").catch(() => {});
   }
   console.error(error);
-}
-
-async function notifyFailure(error) {
-  if (!barkPushUrl) return;
-
-  const message = [
-    `Coze daily action failed.`,
-    `Reason: ${error?.message || String(error)}`,
-    runUrl ? `Run: ${runUrl}` : ""
-  ].filter(Boolean).join("\n");
-
-  const url = `${barkPushUrl}/${encodeURIComponent("Coze每日积分失败")}/${encodeURIComponent(message)}`;
-  const response = await fetch(url).catch((fetchError) => {
-    console.error(`Bark notification failed: ${fetchError.message}`);
-    return null;
-  });
-
-  if (response && !response.ok) {
-    console.error(`Bark notification returned HTTP ${response.status}`);
-  }
-}
-
-function normalizeBarkUrl(url) {
-  return url.replace(/\/+$/, "");
 }
 
 main().catch((error) => {

@@ -33,8 +33,9 @@ jobs:
         env:
           COZE_STORAGE_STATE_JSON: ${{ secrets.COZE_STORAGE_STATE_JSON }}
           COZE_COOKIES_JSON: ${{ secrets.COZE_COOKIES_JSON }}
-          COZE_TARGET_URL: ${{ vars.COZE_TARGET_URL }}
-          COZE_CLICK_TEXTS: ${{ vars.COZE_CLICK_TEXTS }}
+          BARK_PUSH_URL: ${{ secrets.BARK_PUSH_URL }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
           PLAYWRIGHT_TIMEOUT_MS: "30000"
           POST_LOAD_WAIT_MS: "5000"
         run: npm start
@@ -55,33 +56,89 @@ jobs:
           path: artifacts/
           if-no-files-found: ignore
 
-      - name: Notify Bark on failure
+      - name: Notify on failure
         if: failure()
         env:
           BARK_PUSH_URL: ${{ secrets.BARK_PUSH_URL }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          node - <<'NODE'
-          const base = (process.env.BARK_PUSH_URL || "").replace(/\/+$/, "");
-          if (!base) {
-            console.log("BARK_PUSH_URL is not set; skip notification.");
-            process.exit(0);
-          }
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
 
-          const title = encodeURIComponent("Coze每日积分失败");
-          const body = encodeURIComponent([
-            "GitHub Actions 运行失败。",
-            `Repo: ${process.env.REPOSITORY}`,
-            `Run: ${process.env.RUN_URL}`
-          ].join("\n"));
+          if Path("artifacts/notification.sent").exists():
+              print("Failure notification was already sent by the script; skip fallback notification.")
+              raise SystemExit(0)
 
-          const response = await fetch(`${base}/${title}/${body}`);
-          if (!response.ok) {
-            throw new Error(`Bark returned HTTP ${response.status}: ${await response.text()}`);
-          }
-          console.log("Bark notification sent.");
-          NODE
+          title = "Coze每日积分失败"
+          content = "\n".join(
+              item for item in [
+                  "GitHub Actions 运行失败。",
+                  f"仓库：{os.environ.get('REPOSITORY', '')}" if os.environ.get("REPOSITORY") else "",
+                  f"运行记录：{os.environ.get('RUN_URL', '')}" if os.environ.get("RUN_URL") else "",
+              ] if item
+          )
+
+          def send_bark():
+              base = os.environ.get("BARK_PUSH_URL", "").strip().rstrip("/")
+              if not base:
+                  print("BARK_PUSH_URL is not set; skip Bark notification.")
+                  return False
+
+              url = f"{base}/{urllib.parse.quote(title, safe='')}/{urllib.parse.quote(content, safe='')}"
+              try:
+                  with urllib.request.urlopen(url, timeout=20) as response:
+                      print("Bark notification sent.")
+                      return 200 <= response.status < 300
+              except Exception as error:
+                  print(f"Bark notification failed: {error}")
+                  return False
+
+          def send_pushplus():
+              token = os.environ.get("PUSHPLUS_TOKEN", "").strip()
+              if not token:
+                  print("PUSHPLUS_TOKEN is not set; skip pushplus notification.")
+                  return False
+
+              payload = {
+                  "token": token,
+                  "title": title,
+                  "content": content,
+                  "template": "txt",
+              }
+              topic = os.environ.get("PUSHPLUS_TOPIC", "").strip()
+              if topic:
+                  payload["topic"] = topic
+
+              request = urllib.request.Request(
+                  "https://www.pushplus.plus/send",
+                  data=json.dumps(payload).encode("utf-8"),
+                  headers={"Content-Type": "application/json"},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      body = response.read().decode("utf-8", errors="replace")
+                  result = json.loads(body)
+                  if result.get("code") != 200:
+                      print(f"pushplus returned code {result.get('code')}: {result.get('msg') or body}")
+                      return False
+                  print("pushplus notification sent.")
+                  return True
+              except Exception as error:
+                  print(f"pushplus notification failed: {error}")
+                  return False
+
+          results = [send_bark(), send_pushplus()]
+          if not any(results):
+              print("No failure notification was sent. Check whether notification secrets are configured.")
+          PY
 
       - name: Upload updated storage state
         if: ${{ success() && vars.UPLOAD_UPDATED_STORAGE_STATE == 'true' }}

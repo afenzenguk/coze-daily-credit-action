@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Run a daily Playwright visit to coze.cn with cookie-based login and Bark failure alerts.",
+  "description": "Run a daily Playwright visit to coze.cn with cookie-based login and failure alerts.",
   "scripts": {
-    "check": "node --check scripts/coze-daily.mjs && node --check scripts/update-github-secret.mjs",
+    "check": "node --check scripts/coze-daily.mjs && node --check scripts/update-github-secret.mjs && node --check scripts/notifications.mjs && node --check scripts/notify-failure.mjs",
     "start": "node scripts/coze-daily.mjs",
+    "notify-failure": "node scripts/notify-failure.mjs",
     "update-secret": "node scripts/update-github-secret.mjs"
   },
   "dependencies": {

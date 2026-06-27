@@ -7,3 +7,4 @@ storage_state.updated.json
 cookies.json
 .env
 .DS_Store
+__pycache__/
