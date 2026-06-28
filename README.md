@@ -42,7 +42,9 @@
 
 | 名称 | 用途 | 填什么 | 获取方式 |
 | --- | --- | --- | --- |
-| `GH_PAT` | 自动更新 `COZE_COOKIES_JSON` | GitHub fine-grained personal access token（细粒度个人访问令牌） | 在 GitHub 个人设置里创建 fine-grained token（细粒度令牌），只授权当前仓库，并给 `Actions secrets`（Actions 密钥）读写权限。GitHub 官方说明见 [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。 |
+| `GH_PAT` | 自动更新 `COZE_COOKIES_JSON` | GitHub fine-grained personal access token（细粒度个人访问令牌） | 在 GitHub 个人设置里创建 fine-grained token（细粒度令牌）。`Repository access`（仓库访问范围）选择当前仓库；`Repository permissions`（仓库权限）里的 `Secrets`（密钥）设置为 `Read and write`（读写）。GitHub 官方说明见 [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。 |
+
+`GH_PAT` 配错只会影响自动刷新 `COZE_COOKIES_JSON`，不会影响当天签到是否成功。遇到 `Resource not accessible by personal access token`（个人访问令牌无权访问资源）时，通常就是 token（令牌）没有选中当前仓库，或没有给 `Secrets: Read and write`（密钥读写）权限。不需要自动刷新 Cookie 的用户可以不填 `GH_PAT`。
 
 ### 第 5 步：手动运行一次
 

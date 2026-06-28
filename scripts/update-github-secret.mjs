@@ -22,8 +22,18 @@ async function main() {
     throw new Error("No usable cookies were found in the updated storage state.");
   }
 
-  await setSecretWithGh(secretName, JSON.stringify(cookies), repository, token);
-  console.log(`Updated repository secret ${secretName}.`);
+  try {
+    await setSecretWithGh(secretName, JSON.stringify(cookies), repository, token);
+    console.log(`Updated repository secret ${secretName}.`);
+  } catch (error) {
+    console.warn(`Failed to update repository secret ${secretName}.`);
+    console.warn("The daily Coze action already completed; this only affects automatic cookie refresh.");
+    console.warn("Check GH_PAT permissions:");
+    console.warn("- Fine-grained token: Repository access must include this repository, and Repository permissions -> Secrets must be Read and write.");
+    console.warn("- Classic token: the token needs the repo scope.");
+    console.warn("- If you do not need automatic cookie refresh, remove the GH_PAT secret.");
+    console.warn(error?.message || error);
+  }
 }
 
 function filterCookies(cookies) {
